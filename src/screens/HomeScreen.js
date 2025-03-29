@@ -1,83 +1,125 @@
-import {
-  View,
-  Text,
-  SafeAreaView,
-  TextInput,
-  TouchableOpacity,
-} from 'react-native';
-import React, {useState} from 'react';
-import {
-  heightPercentageToDP as hp,
-  widthPercentageToDP as wp,
-} from 'react-native-responsive-screen';
-import Icon from 'react-native-vector-icons/Ionicons';
+import {View, SafeAreaView, ScrollView, ActivityIndicator} from 'react-native';
+import React, {useEffect, useState} from 'react';
+import axios from 'axios';
+import HeaderHome from '../components/HomeScreen/HeaderHome';
+import SearchBarHome from '../components/HomeScreen/SearchBarHome';
+import SurpriseRecipeCard from '../components/HomeScreen/SurpriseRecipeCard';
+import CategoryCard from '../components/HomeScreen/CategoryCard';
+import MansonryImages from '../components/MansonryImages';
 
-export default function HomeScreen() {
+export default function HomeScreen({navigation}) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [meals, setMeals] = useState([]);
+  const [selectedCaterogies, setSelectedCaterogies] = useState('Beef');
+  const [loadingMeal, setLoadingMeal] = useState(false);
+  const [show, setShow] = useState(true);
+
+  const getMealsByCategory = async () => {
+    setLoadingMeal(true);
+    const category = selectedCaterogies;
+    try {
+      const response = await axios.get(
+        `https://www.themealdb.com/api/json/v1/1/filter.php?c=${category}`,
+      );
+      setMeals(response.data.meals);
+      setLoadingMeal(false);
+    } catch (error) {
+      setLoadingMeal(false);
+      console.error('Error fetching meals by category:', error);
+      return [];
+    }
+  };
+
+  useEffect(() => {
+    getMealsByCategory();
+  }, [selectedCaterogies]);
+
+  const searchMeals = async text => {
+    try {
+      const response = await axios.get(
+        `https://www.themealdb.com/api/json/v1/1/search.php?s=${text}`,
+      );
+      setMeals(response.data.meals || []);
+    } catch (error) {
+      console.error('Error searching meals:', error);
+    }
+  };
+
+  const handleSearch = text => {
+    setSearchQuery(text);
+    if (text === '') {
+      setShow(true);
+      getMealsByCategory();
+    } else {
+      setShow(false);
+    }
+    setTimeout(() => {
+      searchMeals(text);
+    }, 1000);
+  };
 
   return (
-    <SafeAreaView>
-      <View
-        style={{
-          paddingVertical: hp(3),
-          paddingLeft: wp(5),
-          paddingRight: wp(35),
-        }}>
-        <Text
-          style={{
-            fontSize: hp(3),
-            fontWeight: 'bold',
-            color: 'black',
-          }}>
-          Find best recipes for cooking
-        </Text>
-      </View>
-      <View
-        style={{
-          paddingHorizontal: wp(5),
-          paddingVertical: hp(1),
-          //   backgroundColor: 'red',
-        }}>
-        <View
-          style={{
-            borderWidth: wp(0.25),
-            borderColor: 'grey',
-            borderRadius: wp(2),
-          }}>
-          <View
-            style={{
-              paddingHorizontal: wp(3),
-              flexDirection: 'row',
-              alignItems: 'center',
-            }}>
-            <Icon name="search-outline" size={hp(2)} color="grey" />
-            <TextInput
-              placeholder="Search Recipes"
-              value={searchQuery}
-              onChangeText={text => setSearchQuery(text)}
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        stickyHeaderIndices={[1]}
+        showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <HeaderHome navigation={() => navigation.navigate('Favorite')} />
+
+        {/* Search Bar */}
+        <SearchBarHome
+          searchQuery={searchQuery}
+          handleSearch={handleSearch}
+          clearHandleSearch={() => handleSearch('')}
+        />
+
+        {show && (
+          <>
+            <SurpriseRecipeCard
+              navigationSurprise={mealsSurprise =>
+                navigation.navigate('SurpriseRecipe', {mealsSurprise})
+              }
+              navigationDetail={id => navigation.navigate('Details', {id})}
             />
+            <CategoryCard
+              selectedCaterogies={selectedCaterogies}
+              setSelectedCaterogies={item =>
+                setSelectedCaterogies(item.strCategory)
+              }
+            />
+          </>
+        )}
+
+        {/* Meals List */}
+        {loadingMeal ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size={'large'} color={'red'} />
           </View>
-        </View>
-      </View>
-      <View>
-        <View
-          style={{
-            marginTop: hp(1.5),
-            marginHorizontal: wp(5),
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-          }}>
-          <Text style={{fontSize: hp(2), fontWeight: 'bold'}}>
-            Surprise Recipe 🔥
-          </Text>
-          <TouchableOpacity
-            style={{flexDirection: 'row', alignItems: 'center'}}>
-            <Text style={{color: 'red', fontSize: hp(1.8)}}>See all</Text>
-            <View style={{width: wp(1)}} />
-            <Icon name="arrow-forward" size={hp(1.5)} color="red" />
-          </TouchableOpacity>
-        </View>
-      </View>
+        ) : (
+          <MansonryImages
+            data={meals || []}
+            navigation={item =>
+              navigation.navigate('Details', {id: item.idMeal})
+            }
+          />
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
+
+const styles = {
+  safeArea: {
+    backgroundColor: 'white',
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  emptyListContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+};
